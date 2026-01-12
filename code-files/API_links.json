@@ -28,5 +28,10 @@
     "name": "Bhashini",
     "Link": "127.0.0.1:8080/demo_bhashini_api",
     "API_key": "TEST_demo_KEY"
+  },
+  {
+    "name": "MESSAGE_APi",
+    "Link": "127.0.0.1:8080/demo_msg_api",
+    "API_key": "TEST_demo_KEY"
   }
 ]
