@@ -1,0 +1,7 @@
+[
+    {
+        "setting_name":"Threshold",
+        "Value":"0.7"
+        //Threshold for the minimum %age of expectancy for flood by the model
+    }
+]
