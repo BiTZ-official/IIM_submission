@@ -1,25 +1,31 @@
 [
   {
+    "name": "MOSDAC",
     "Link": "127.0.0.1:8080/demo_mosdac_api",
     "API_key": "TEST_demo_KEY"
   },
   {
+    "name": "IMD",
     "Link": "127.0.0.1:8080/demo_imd_api",
     "API_key": "TEST_demo_KEY"
   },
   {
+    "name": "CWC",
     "Link": "127.0.0.1:8080/demo_cwc_api",
     "API_key": "TEST_demo_KEY"
   },
   {
+    "name": "NWIC",
     "Link": "127.0.0.1:8080/demo_nwic_api",
     "API_key": "TEST_demo_KEY"
   },
   {
+    "name": "Bhuvan",
     "Link": "127.0.0.1:8080/demo_bhuvan_api",
     "API_key": "TEST_demo_KEY"
   },
   {
+    "name": "Bhashini",
     "Link": "127.0.0.1:8080/demo_bhashini_api",
     "API_key": "TEST_demo_KEY"
   }
