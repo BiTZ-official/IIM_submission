@@ -4,9 +4,9 @@ import pandas as pd
 import uvicorn
 import os
 
-app = FastAPI(title="Flood Prediction API", description="Predict flood risk based on rainfall, river level, and dam release.")
+app = FastAPI()
 
-# Load training data safely
+# Load training data
 DATA_FILE = "training_data.json"
 if os.path.exists(DATA_FILE):
     historical_df = pd.read_json(DATA_FILE)
@@ -14,7 +14,7 @@ else:
     historical_df = pd.DataFrame(columns=["hour", "location", "rainfall", "river_level", "dam_release", "flood_occurred"])
 
 def predict_flood_and_time(location: str, rainfall: float, river_level: float, dam_release: float):
-    # Normalize location strings
+    # Normalize strings
     df = historical_df[historical_df["location"].str.strip().str.lower() == location.strip().lower()]
     if df.empty:
         return "Unknown", "N/A", "gray"
@@ -40,12 +40,6 @@ def predict_flood_and_time(location: str, rainfall: float, river_level: float, d
         return "Unlikely", 50, "yellow"
     else:
         return "No", "N/A", "green"
-
-
-@app.get("/")
-async def root():
-    return {"message": "Flood Prediction API is running. Use /process_api with query parameters."}
-
 @app.get("/process_api")
 async def process_api(location: str, rainfall: float, river_level: float, dam_release: float):
     flood_risk, time_left, color = predict_flood_and_time(location, rainfall, river_level, dam_release)

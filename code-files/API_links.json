@@ -31,7 +31,12 @@
   },
   {
     "name": "MESSAGE_APi",
-    "Link": "127.0.0.1:8080/demo_msg_api",
+    "Link": "127.0.0.1:8080/MESSAGE_APi",
+    "API_key": "TEST_demo_KEY"
+  },
+  {
+    "name": "District",
+    "Link": "127.0.0.1:8080/demo_district_api",
     "API_key": "TEST_demo_KEY"
   }
 ]
