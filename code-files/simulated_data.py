@@ -1,3 +1,26 @@
+"""
+Simulated Data API Server
+
+This module provides a FastAPI-based server that simulates various environmental
+and governmental APIs for flood monitoring. It includes endpoints for weather data,
+river levels, translation services, and a web-based control panel for testing.
+
+Features:
+- Simulated APIs for MOSDAC, IMD, CWC, NWIC, Bhuvan, Bhashini, and messaging
+- District-level data simulation with configurable scenarios
+- Web control panel for adjusting simulation parameters
+- Multi-language translation simulation
+- RESTful API endpoints with authentication
+
+Dependencies:
+- fastapi: Web framework
+- pydantic: Data validation
+- uvicorn: ASGI server
+- json, datetime: Data handling
+
+Author: BiTZ Team
+"""
+
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
@@ -7,18 +30,107 @@ from datetime import datetime, timezone, timedelta
 
 app = FastAPI()
 
-# Load district list from JSON
+# Load district list from JSON file
 with open("districts.json", "r", encoding="utf-8") as f:
     district_list = json.load(f)
 
-# Simulated data
-
+# Helper function to generate current timestamp in ISO format
 def _iso_now_hour():
+    """
+    Generate current UTC timestamp rounded to the hour.
+
+    Returns:
+        str: ISO 8601 formatted timestamp.
+    """
     return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+# Today's date for demo data
 _today = datetime.now(timezone.utc).date()
 
+# Simulated demo data for various APIs
 demo_data = {
+    "mosdac": {
+        "datasetId": "rainfall_daily",
+        "location": "Assam",
+        "timestamp": _iso_now_hour(),
+        "rainfall_mm": 42.5,
+        "source": "MOSDAC-INSAT3D"
+    },
+    "imd": {
+        "stationId": "IMD_Guwahati",
+        "stationName": "Guwahati",
+        "timestamp": _iso_now_hour(),
+        "temperature_c": 28,
+        "humidity_percent": 78,
+        "rainfall_mm": 65,
+        "windSpeed_kmph": 12,
+        "forecast": [
+            {"date": (_today + timedelta(days=1)).isoformat(), "rainfall_mm": 80, "condition": "Heavy Rain"},
+            {"date": (_today + timedelta(days=2)).isoformat(), "rainfall_mm": 20, "condition": "Cloudy"}
+        ]
+    },
+    "cwc": {
+        "stationId": "CWC_Brahmaputra_Dhemaji",
+        "riverName": "Brahmaputra",
+        "location": "Dhemaji",
+        "timestamp": _iso_now_hour(),
+        "waterLevel_m": 5.8,
+        "discharge_cumecs": 1200,
+        "dangerLevel_m": 5.5,
+        "status": "Above Danger Level"
+    },
+    "nwic": {
+        "records": [
+            {
+                "date": _today.isoformat(),
+                "river": "Brahmaputra",
+                "district": "Majuli",
+                "waterLevel_m": 4.9,
+                "groundWaterLevel_m": 2.1,
+                "rainfall_mm": 72,
+                "temperature_c": 27,
+                "humidity_percent": 82
+            }
+        ]
+    },
+    "bhuvan": {
+        "district": "Dhemaji",
+        "latitude": 27.48,
+        "longitude": 94.58,
+        "landUse": "Floodplain Agriculture",
+        "floodProneZone": True,
+        "nearestReliefCamp_km": 3.2,
+        "populationAffected": 12000
+    },
+    "bhashini": {
+        "pipelineId": "translation_en_as",
+        "inputText": "Flood warning in Dhemaji district",
+        "outputText": "ধেমাজি জিলাত বানৰ সতৰ্কবাণী",
+        "language": "Assamese"
+    }
+}
+
+# District-level simulated data - default neutral values
+district_data = {
+    district: {
+        "rainfall_mm": 10,
+        "river_level_m": 2.5,
+        "dam_release_cumecs": 300
+    }
+    for district in district_list
+}
+
+def is_authorized(request: Request):
+    """
+    Check if the request is authorized using Bearer token.
+
+    Args:
+        request (Request): FastAPI request object.
+
+    Returns:
+        bool: True if authorized, False otherwise.
+    """
+    return request.headers.get("Authorization") == "Bearer TEST_demo_KEY"
     "mosdac": {
         "datasetId": "rainfall_daily",
         "location": "Assam",
@@ -97,36 +209,105 @@ def is_authorized(request: Request):
 # Simulated API endpoints
 @app.get("/demo_mosdac_api")
 async def mosdac(request: Request):
+    """
+    Simulate MOSDAC (Meteorology and Oceanography Satellite Data Archival Centre) API.
+
+    Returns simulated rainfall and satellite data.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Returns:
+        JSONResponse: Simulated MOSDAC data or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     return demo_data["mosdac"]
 
 @app.get("/demo_imd_api")
 async def imd(request: Request):
+    """
+    Simulate IMD (India Meteorological Department) API.
+
+    Returns simulated weather station data including forecasts.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Returns:
+        JSONResponse: Simulated IMD data or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     return demo_data["imd"]
 
 @app.get("/demo_cwc_api")
 async def cwc(request: Request):
+    """
+    Simulate CWC (Central Water Commission) API.
+
+    Returns simulated river water level and discharge data.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Returns:
+        JSONResponse: Simulated CWC data or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     return demo_data["cwc"]
 
 @app.get("/demo_nwic_api")
 async def nwic(request: Request):
+    """
+    Simulate NWIC (National Water Informatics Centre) API.
+
+    Returns simulated groundwater and water level records.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Returns:
+        JSONResponse: Simulated NWIC data or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     return demo_data["nwic"]
 
 @app.get("/demo_bhuvan_api")
 async def bhuvan(request: Request):
+    """
+    Simulate Bhuvan (ISRO's geospatial platform) API.
+
+    Returns simulated geospatial data for districts.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Returns:
+        JSONResponse: Simulated Bhuvan data or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     return demo_data["bhuvan"]
 
 @app.get("/demo_bhashini_api")
 async def bhashini(request: Request):
+    """
+    Simulate Bhashini (translation) API.
+
+    Returns simulated translations of input text into multiple Indian languages.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+
+    Query Parameters:
+        text (str): Text to translate.
+
+    Returns:
+        dict: Simulated translations or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     input_text = request.query_params.get("text", "")
@@ -150,6 +331,18 @@ async def bhashini(request: Request):
 # District-level API
 @app.get("/demo_district_api")
 async def get_district_data(request: Request, district: str = None):
+    """
+    Get simulated district-level environmental data.
+
+    Returns data for a specific district or all districts.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+        district (str, optional): Specific district name.
+
+    Returns:
+        JSONResponse: District data or 403/404 if unauthorized/invalid.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     if district:
@@ -161,9 +354,29 @@ async def get_district_data(request: Request, district: str = None):
 # Control Panel UI
 @app.get("/CP", response_class=HTMLResponse)
 async def control_panel(selected: str = "Sonitpur"):
+    """
+    Web-based control panel for adjusting district simulation parameters.
+
+    Provides a UI to select districts and modify environmental data for testing.
+
+    Args:
+        selected (str): Currently selected district name.
+
+    Returns:
+        HTMLResponse: HTML page for the control panel.
+    """
     d = district_data.get(selected, {"rainfall_mm": "-", "river_level_m": "-", "dam_release_cumecs": "-"})
 
     def _mode_from_data(d):
+        """
+        Determine the current simulation mode based on data values.
+
+        Args:
+            d (dict): District data.
+
+        Returns:
+            str: Mode name ("neutral", "flood", "heavy_rain", "drought", "custom").
+        """
         try:
             if d["rainfall_mm"] == 10 and d["river_level_m"] == 2.5 and d["dam_release_cumecs"] == 300:
                 return "neutral"
@@ -262,6 +475,20 @@ async def update_district_mode(
     dam: float = Form(0),
     action: str = Form("apply")
 ):
+    """
+    Update district simulation data based on control panel input.
+
+    Args:
+        district (str): District name.
+        mode (str): Simulation mode ("neutral", "flood", etc.).
+        rainfall (float): Rainfall value.
+        river (float): River level value.
+        dam (float): Dam release value.
+        action (str): Action type ("apply" or "sms").
+
+    Returns:
+        HTMLResponse: Redirect or alert message.
+    """
     if district not in district_data:
         return HTMLResponse(content=f"<script>alert('Invalid district'); window.location.href='/CP';</script>")
 
@@ -286,13 +513,30 @@ async def update_district_mode(
 
 # Message API
 class Message(BaseModel):
+    """
+    Pydantic model for message data.
+    """
     text: str
 
 @app.post("/MESSAGE_APi")
 async def receive_message(request: Request, msg: Message):
+    """
+    Simulate message receiving API.
+
+    Logs incoming messages for testing purposes.
+
+    Args:
+        request (Request): FastAPI request object for authorization.
+        msg (Message): Message data.
+
+    Returns:
+        dict: Response status or 403 if unauthorized.
+    """
     if not is_authorized(request):
         return JSONResponse(status_code=403, content={"error": "Invalid API key"})
     print(f"[MESSAGE_API] Received message: {msg.text}")
     return {"status": "received", "message": msg.text}
+
 if __name__ == "__main__":
+    # Run the FastAPI server on localhost port 8080
     uvicorn.run(app, host="127.0.0.1", port=8080)
