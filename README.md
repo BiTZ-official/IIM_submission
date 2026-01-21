@@ -76,7 +76,7 @@ The system consists of three main components that need to run simultaneously:
 
 1. **Start the Simulated Data Server (Port 8080):**
 
-   ```bash
+   ```
    python simulated_data.py
    ```
 
@@ -84,7 +84,7 @@ The system consists of three main components that need to run simultaneously:
 
 2. **Start the Processing API Server (Port 8090):**
 
-   ```bash
+   ```
    python process.py
    ```
 
