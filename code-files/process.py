@@ -24,13 +24,12 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 import uvicorn
 import os
+from pathlib import Path
 
 app = FastAPI()
 
-# Path to training data file
-DATA_FILE = "training_data.json"
-
-# Load historical training data or create empty DataFrame if file doesn't exist
+BASE_DIR = Path(__file__).resolve().parent
+DATA_FILE = BASE_DIR / "training_data.json"
 if os.path.exists(DATA_FILE):
     historical_df = pd.read_json(DATA_FILE)
 else:
@@ -57,12 +56,25 @@ def predict_flood_and_time(location: str, rainfall: float, river_level: float, d
             - color_code: Color indicator ("red", "orange", "yellow", "green", "gray")
     """
     # Normalize location string for comparison
-    df = historical_df[historical_df["location"].str.strip().str.lower() == location.strip().lower()]
-    if df.empty:
-        return "Unknown", "N/A", "gray"
+    try:
+        if "location" in historical_df.columns:
+            df_loc = historical_df[historical_df["location"].str.strip().str.lower() == location.strip().lower()]
+        else:
+            df_loc = pd.DataFrame()
+    except Exception:
+        df_loc = pd.DataFrame()
 
-    # Filter for historical flood cases
-    flood_cases = df[df["flood_occurred"] == 1]
+    # Filter for historical flood cases (prefer location-specific, else global)
+    try:
+        if not df_loc.empty and "flood_occurred" in df_loc.columns:
+            flood_cases = df_loc[df_loc["flood_occurred"] == 1]
+        elif "flood_occurred" in historical_df.columns:
+            flood_cases = historical_df[historical_df["flood_occurred"] == 1]
+        else:
+            flood_cases = pd.DataFrame()
+    except Exception:
+        flood_cases = pd.DataFrame()
+
     if flood_cases.empty:
         return "No", "N/A", "green"
 
@@ -73,9 +85,21 @@ def predict_flood_and_time(location: str, rainfall: float, river_level: float, d
 
     # Score based on how many parameters exceed historical flood averages
     score = 0
-    if rainfall >= avg_rain: score += 1
-    if river_level >= avg_river: score += 1
-    if dam_release >= avg_dam: score += 1
+    try:
+        if float(rainfall) >= float(avg_rain):
+            score += 1
+    except Exception:
+        pass
+    try:
+        if float(river_level) >= float(avg_river):
+            score += 1
+    except Exception:
+        pass
+    try:
+        if float(dam_release) >= float(avg_dam):
+            score += 1
+    except Exception:
+        pass
 
     # Determine risk level and time based on score
     if score == 3:
@@ -102,18 +126,42 @@ async def process_api(location: str, rainfall: float, river_level: float, dam_re
         dam_release (float): Dam release in cumecs
 
     Returns:
-        JSONResponse: Prediction results including risk, time, and message
+        JSONResponse: Prediction results in district-specific format
     """
     flood_risk, time_left, color = predict_flood_and_time(location, rainfall, river_level, dam_release)
+    
+    # Get max river level for the location (safe handling)
+    try:
+        if "location" in historical_df.columns:
+            df_loc = historical_df[historical_df["location"].str.strip().str.lower() == location.strip().lower()]
+        else:
+            df_loc = pd.DataFrame()
+    except Exception:
+        df_loc = pd.DataFrame()
+
+    max_river_level = None
+    try:
+        if not df_loc.empty and "river_level" in df_loc.columns:
+            max_river_level = df_loc["river_level"].max()
+        elif "river_level" in historical_df.columns and not historical_df.empty:
+            max_river_level = historical_df["river_level"].max()
+    except Exception:
+        max_river_level = None
+
+    # Determine flood_occurred based on risk
+    flood_occurred = 1 if flood_risk in ["Yes", "Likely"] else 0
+
+    # Set hour to time_left if numeric, else 0
+    hour = time_left if isinstance(time_left, int) else 0
+    
     return JSONResponse(content={
         "location": location.title(),
         "rainfall": rainfall,
         "river_level": river_level,
+        "M_river_level": max_river_level,
         "dam_release": dam_release,
-        "flood_risk": flood_risk,
-        "time_left_hours": time_left,
-        "color_code": color,
-        "message": f"Flood risk: {flood_risk}. Estimated time left: {time_left} hours." if time_left != "N/A" else "No flood expected."
+        "hour": hour,
+        "flood_occurred": flood_occurred
     })
 
 

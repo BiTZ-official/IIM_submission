@@ -13,11 +13,12 @@ Features:
 - Integration with simulated data APIs for testing
 
 Dependencies:
-- requests: For API calls
-- tkinter: For GUI
-- json: For data handling
-- threading: For background scanning
-- time, math: Utilities
+- requests
+- tkinter
+- json
+- threading
+- time
+- math
 
 Author: BiTZ Team
 """
@@ -29,9 +30,14 @@ from tkinter import messagebox
 import threading
 import time
 import math
+import os
+from pathlib import Path
 
 # API endpoint for flood prediction processing
 PROCESS_API = "http://127.0.0.1:8090/process_api"
+
+# Base directory for data files (script directory)
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def load_api_links():
@@ -44,7 +50,7 @@ def load_api_links():
     Returns:
         dict: A mapping of API names to their URL and API key configurations.
     """
-    with open("API_links.json", "r") as f:
+    with open(BASE_DIR / "API_links.json", "r") as f:
         raw_list = json.load(f)
 
     api_map = {}
@@ -128,7 +134,13 @@ def call_process_api(payload):
         "river_level": payload["river_level"],
         "dam_release": payload["dam_release"]
     }
-    return requests.get(PROCESS_API, params=params).json()
+    try:
+        r = requests.get(PROCESS_API, params=params, timeout=8)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[ERROR] process API call failed: {e}")
+        return {"location": payload.get("location", "Unknown"), "rainfall": params.get("rainfall", 0), "river_level": params.get("river_level", 0), "M_river_level": None, "dam_release": params.get("dam_release", 0), "hour": 0, "flood_occurred": 0}
 
 
 def call_bhashini(message, bhashini_api):
@@ -145,9 +157,14 @@ def call_bhashini(message, bhashini_api):
         dict: Translated messages in various languages.
     """
     payload = {"text": message}
-    headers = {"Authorization": f"Bearer {bhashini_api['api_key']}"}
-    r = requests.get(bhashini_api["url"], params=payload, headers=headers)
-    return r.json()
+    headers = {"Authorization": f"Bearer {bhashini_api.get('api_key','')}"}
+    try:
+        r = requests.get(bhashini_api["url"], params=payload, headers=headers, timeout=6)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[WARN] Bhashini translation failed: {e}")
+        return {"outputText": message}
 
 
 def send_message(message, msg_api):
@@ -160,8 +177,11 @@ def send_message(message, msg_api):
         message (str): The formatted alert message.
         msg_api (dict): Messaging API configuration.
     """
-    headers = {"Authorization": f"Bearer {msg_api['api_key']}"}
-    requests.post(msg_api["url"], json={"text": message}, headers=headers)
+    headers = {"Authorization": f"Bearer {msg_api.get('api_key','')}", "Content-Type": "application/json"}
+    try:
+        requests.post(msg_api["url"], json={"text": message}, headers=headers, timeout=6)
+    except Exception as e:
+        print(f"[WARN] sending message failed: {e}")
 
 
 class App(tk.Tk):
@@ -178,7 +198,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("Flood Monitoring Control Panel")
         self.geometry("900x700")
-        self.districts = json.load(open("districts.json"))
+        self.districts = json.load(open(BASE_DIR / "districts.json"))
         self.apis = load_api_links()
         self.district_risks = {}  # district: {"risk": bool, "data": {...}, "result": {...}}
         self.next_scan = time.time() + 6 * 3600  # 6 hours
@@ -243,7 +263,7 @@ class App(tk.Tk):
             "dam_release": district_data["dam_release_cumecs"]
         }
         result = call_process_api(params)
-        risk = result.get("flood_risk") in ["Yes", "Likely"]
+        risk = result["flood_occurred"] == 1
         self.district_risks[district] = {"risk": risk, "data": district_data, "result": result}
 
     def update_colors(self):
@@ -275,9 +295,11 @@ class App(tk.Tk):
         tk.Label(win, text=f"Rainfall: {info['data']['rainfall_mm']} mm").pack()
         tk.Label(win, text=f"River Level: {info['data']['river_level_m']} m").pack()
         tk.Label(win, text=f"Dam Release: {info['data']['dam_release_cumecs']} cumecs").pack()
+        if info['data'].get('M_river_level'):
+            tk.Label(win, text=f"Max River Level: {info['data']['M_river_level']} m").pack()
         if info["result"]:
-            tk.Label(win, text=f"Flood Risk: {info['result'].get('flood_risk', 'Unknown')}").pack()
-            tk.Label(win, text=f"Message: {info['result'].get('message', '')}", wraplength=400).pack()
+            tk.Label(win, text=f"Flood Occurred: {'Yes' if info['result']['flood_occurred'] else 'No'}").pack()
+            tk.Label(win, text=f"Hour: {info['result']['hour']}").pack()
         tk.Button(win, text="Send Message", command=lambda: self.send_alert(district)).pack()
         tk.Button(win, text="Dismiss", command=win.destroy).pack()
         tk.Button(win, text="Rescan", command=lambda: [self.scan_district(district), self.update_colors(), win.destroy()]).pack()
@@ -292,12 +314,9 @@ class App(tk.Tk):
             district (str): Name of the district.
         """
         info = self.district_risks[district]
-        if info["result"] and info["result"].get("flood_risk") in ["Yes", "Likely"]:
-            message = info["result"]["message"]
-            if "Estimated time left:" in message:
-                time_left = message.split("Estimated time left: ")[1].strip()
-            else:
-                time_left = "Unknown"
+        if info["result"] and info["result"]["flood_occurred"] == 1:
+            # Since message is no longer in result, create a new message
+            time_left = f"{info['result']['hour']} hours" if info['result']['hour'] > 0 else "Unknown"
             relief_km = info["data"].get("nearestReliefCamp_km", "Unknown") if info["data"] else "Unknown"
             relief_link = f"https://www.google.com/maps/search/relief+camp+near+{district}/"
             formatted_msg = f"""--- Flood Alert ---
@@ -348,8 +367,10 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Flood Monitoring Control Panel")
-        self.geometry("900x700")
-        self.districts = json.load(open("districts.json"))
+        self.attributes('-fullscreen', True)
+        self.bind("<Escape>", lambda e: self.attributes('-fullscreen', False))
+        with open("districts.json") as f:
+            self.districts = json.load(f)
         self.apis = load_api_links()
         self.district_risks = {}  # district: {"risk": bool, "data": {...}, "result": {...}}
         self.next_scan = time.time() + 6 * 3600  # 6 hours
@@ -396,7 +417,7 @@ class App(tk.Tk):
             "dam_release": district_data["dam_release_cumecs"]
         }
         result = call_process_api(params)
-        risk = result.get("flood_risk") in ["Yes", "Likely"]
+        risk = result["flood_occurred"] == 1
         self.district_risks[district] = {"risk": risk, "data": district_data, "result": result}
 
     def update_colors(self):
@@ -415,21 +436,20 @@ class App(tk.Tk):
         tk.Label(win, text=f"Rainfall: {info['data']['rainfall_mm']} mm").pack()
         tk.Label(win, text=f"River Level: {info['data']['river_level_m']} m").pack()
         tk.Label(win, text=f"Dam Release: {info['data']['dam_release_cumecs']} cumecs").pack()
+        if info['data'].get('M_river_level'):
+            tk.Label(win, text=f"Max River Level: {info['data']['M_river_level']} m").pack()
         if info["result"]:
-            tk.Label(win, text=f"Flood Risk: {info['result'].get('flood_risk', 'Unknown')}").pack()
-            tk.Label(win, text=f"Message: {info['result'].get('message', '')}", wraplength=400).pack()
+            tk.Label(win, text=f"Flood Occurred: {'Yes' if info['result']['flood_occurred'] else 'No'}").pack()
+            tk.Label(win, text=f"est. Hours left: {info['result']['hour']}").pack()
         tk.Button(win, text="Send Message", command=lambda: self.send_alert(district)).pack()
         tk.Button(win, text="Dismiss", command=win.destroy).pack()
         tk.Button(win, text="Rescan", command=lambda: [self.scan_district(district), self.update_colors(), win.destroy()]).pack()
 
     def send_alert(self, district):
         info = self.district_risks[district]
-        if info["result"] and info["result"].get("flood_risk") in ["Yes", "Likely"]:
-            message = info["result"]["message"]
-            if "Estimated time left:" in message:
-                time_left = message.split("Estimated time left: ")[1].strip()
-            else:
-                time_left = "Unknown"
+        if info["result"] and info["result"]["flood_occurred"] == 1:
+            # Since message is no longer in result, create a new message
+            time_left = f"{info['result']['hour']} hours" if info['result']['hour'] > 0 else "Unknown"
             relief_km = info["data"].get("nearestReliefCamp_km", "Unknown") if info["data"] else "Unknown"
             relief_link = f"https://www.google.com/maps/search/relief+camp+near+{district}/"
             formatted_msg = f"""--- Flood Alert ---
@@ -457,8 +477,6 @@ Nearest relief camp     : {relief_km} KM
         self.timer_label.config(text=f"Next scan in: {hours:02d}:{mins:02d}:{secs:02d}")
         self.after(1000, self.update_timer)
 
-
-# ---------- MAIN PIPELINE ----------
 def main():
     app = App()
     app.mainloop()

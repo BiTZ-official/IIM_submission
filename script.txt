@@ -1,0 +1,51 @@
+2-Minute Demo Script — BiTZ: Flood Monitoring Control Panel
+Total time: 02:00
+
+00:00–00:10 — Opening
+- "Hello, we are Team BiTZ. This is a deployable Flood Monitoring Control Panel Prototype focused on North-East India."
+- Visual: Project title slide + team name (3s)
+
+00:10–00:30 — Problem & Context (NER relevance)
+- "NER faces flash floods, data gaps, and multi-language alert needs. Our system integrates satellite, weather, river, and geospatial sources and automates multilingual alerts and local response guidance."
+- Visual: Map of NER highlighting flood-prone districts (image) (5s)
+- Visual: One-line problem statement slide (5s)
+
+00:30–01:10 — Live prototype demo (core flow) — 40s
+- Say: "Now a quick live walkthrough of the prototype:"
+  00:30–00:40 — Launch the system
+    - Show: Running `run_me.bat` which sets up the virtual environment, installs requirements, and starts the simulated APIs and processing API (10s)
+  00:40–01:10 — GUI Control Panel
+    - Show: `main.processor.py` GUI with district grid
+    - Action: Click 'Force Scan' (or auto-scan) and show color-coded districts update
+    - Action: Click a district -> open Details -> show prediction, hour estimate, and "Send Message" flow
+    - Visuals: short recorded clip (20s) showing scan → detail → send alert
+
+01:10–01:30 — Technical architecture & AI core (20s)
+- "Architecture: Frontend GUI → API layer (simulated APIs) → Processing API (uses historical data) → Alerts/Translation"
+- Visual: One-slide architecture diagram (User→API→Model→DB) (8s)
+- Brief AI note: "The processing API uses historical flood cases to compute simple risk scores and time-to-event heuristics; model can be upgraded to ML classification/regression with same pipeline." (8s)
+
+01:30–01:45 — Responsible AI & Ops (15s)
+- Mention: data provenance (training_data.json), API keys for simulation, language translation sandboxed, and opt-in alerts.
+- Visual: short bullet slide listing Responsible AI checks (bias, privacy, DPDP-ready note) (10s)
+
+01:45–02:00 — Impact, next steps & call to action (15s)
+- "Impact: faster local warnings, multilingual reach, and pilot readiness for government adoption in NER."
+- End: "Repo link, README with run instructions, and eligibility PDF are included in our ZIP. Thank you."
+- Visual: Final slide with Git repo link, README pointer, and contact info (5s)
+
+Checklist of visuals/process clips to include in the 2-minute video
+- Title slide (team + project) — image
+- NER map highlighting districts — image
+- Terminal: run `run_me.bat` — short clip / screenshot
+- GUI: Force Scan — clip showing district color updates
+- GUI: District Details → prediction → Send Message — clip
+- API response examples (JSON) — screenshot (demo_mosdac_api/demo_bhashini_api/demo_district_api/process_api)
+- Architecture diagram (simple PNG/PDF)
+- Responsible AI bullets slide — image
+- Final contact/links slide — image
+
+Notes for recording
+- Use voiceover aligned with timestamps above (keep a visible timer while recording)
+- For live clicks, record short clips (3–15s) and paste them in order; avoid long waits
+- Use the control panel URL `http://127.0.0.1:8080/CP` for screen capture of the web control panel

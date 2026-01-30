@@ -27,12 +27,25 @@ from pydantic import BaseModel
 import uvicorn
 import json
 from datetime import datetime, timezone, timedelta
+import pandas as pd
+import os
+from pathlib import Path
 
 app = FastAPI()
 
+# Base directory for data files (script directory)
+BASE_DIR = Path(__file__).resolve().parent
+
 # Load district list from JSON file
-with open("districts.json", "r", encoding="utf-8") as f:
+with open(BASE_DIR / "districts.json", "r", encoding="utf-8") as f:
     district_list = json.load(f)
+
+# Load historical training data
+DATA_FILE = BASE_DIR / "td2.json"
+if os.path.exists(DATA_FILE):
+    historical_df = pd.read_json(DATA_FILE)
+else:
+    historical_df = pd.DataFrame(columns=["location", "rainfall", "river_level", "dam_release", "hour", "flood_occurred"])
 
 # Helper function to generate current timestamp in ISO format
 def _iso_now_hour():
@@ -40,7 +53,7 @@ def _iso_now_hour():
     Generate current UTC timestamp rounded to the hour.
 
     Returns:
-        str: ISO 8601 formatted timestamp.
+     ISO 8601 formatted timestamp.
     """
     return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -111,14 +124,16 @@ demo_data = {
 }
 
 # District-level simulated data - default neutral values
-district_data = {
-    district: {
+district_data = {}
+for district in district_list:
+    df = historical_df[historical_df["location"].str.strip().str.lower() == district.strip().lower()]
+    max_river_level = df["river_level"].max() if not df.empty else None
+    district_data[district] = {
         "rainfall_mm": 10,
         "river_level_m": 2.5,
-        "dam_release_cumecs": 300
+        "dam_release_cumecs": 300,
+        "M_river_level": max_river_level
     }
-    for district in district_list
-}
 
 def is_authorized(request: Request):
     """
@@ -425,15 +440,15 @@ async def update_district_mode(
         return HTMLResponse(content=f"<script>alert('Demo SMS sent for {district}!'); window.location.href='/CP?selected={district}';</script>")
 
     if mode == "neutral":
-        district_data[district] = {"rainfall_mm": 10, "river_level_m": 2.5, "dam_release_cumecs": 300}
+        district_data[district] = {"rainfall_mm": 10, "river_level_m": 2.5, "dam_release_cumecs": 300, "M_river_level": district_data[district]["M_river_level"]}
     elif mode == "flood":
-        district_data[district] = {"rainfall_mm": 150, "river_level_m": 7.5, "dam_release_cumecs": 1800}
+        district_data[district] = {"rainfall_mm": 150, "river_level_m": 7.5, "dam_release_cumecs": 1800, "M_river_level": district_data[district]["M_river_level"]}
     elif mode == "heavy_rain":
-        district_data[district] = {"rainfall_mm": 90, "river_level_m": 5.0, "dam_release_cumecs": 1000}
+        district_data[district] = {"rainfall_mm": 90, "river_level_m": 5.0, "dam_release_cumecs": 1000, "M_river_level": district_data[district]["M_river_level"]}
     elif mode == "drought":
-        district_data[district] = {"rainfall_mm": 2, "river_level_m": 1.0, "dam_release_cumecs": 100}
+        district_data[district] = {"rainfall_mm": 2, "river_level_m": 1.0, "dam_release_cumecs": 100, "M_river_level": district_data[district]["M_river_level"]}
     elif mode == "custom":
-        district_data[district] = {"rainfall_mm": rainfall, "river_level_m": river, "dam_release_cumecs": dam}
+        district_data[district] = {"rainfall_mm": rainfall, "river_level_m": river, "dam_release_cumecs": dam, "M_river_level": district_data[district]["M_river_level"]}
 
     return HTMLResponse(content=f"<script>window.location.href='/CP?selected={district}';</script>")
 
